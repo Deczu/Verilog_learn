@@ -24,6 +24,7 @@ module tb_top;
     // =========================
     // CLOCK
     initial clk = 0;
+    
     always #5 clk = ~clk;
     // =========================
     // TEST SEQUENCE
