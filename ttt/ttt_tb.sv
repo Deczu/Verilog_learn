@@ -8,6 +8,7 @@ module tb_top;
 
     logic winner;
     logic player;
+    logic stop_game;
 
     // 18-bit packed board from DUT (9 cells x 2 bits)
     logic [17:0] board;
@@ -23,6 +24,7 @@ module tb_top;
         .data_in_y (data_in_y),
         .winner    (winner),
         .player    (player),
+        .stop_game (stop_game),
         .board     (board)
     );
 
@@ -39,25 +41,23 @@ module tb_top;
         // INIT
         reset     = 1;
         enable    = 0;
-        data_in_x = 0;
-        data_in_y = 0;
         @(negedge clk);
         reset = 0;
         enable = 1;
-        $info("winner: %d, player: %d", winner, player);
-        @(negedge clk);
-        data_in_x = 1;
+        data_in_x = 0;
         data_in_y = 0;
         @(negedge clk);
         data_in_x = 1;
         data_in_y = 0;
-        $info("winner: %d, player: %d", winner, player);
         @(negedge clk);
-        data_in_x = 2;
-        data_in_y = 0;
+        data_in_x = 0;
+        data_in_y = 1;
         @(negedge clk);
-        data_in_x = 2;
-        data_in_y = 0;
+        data_in_x = 1;
+        data_in_y = 1;
+        @(negedge clk);
+        data_in_x = 0;
+        data_in_y = 2;
         @(negedge clk);
         // // =========================
         // // PRINT BOARD
