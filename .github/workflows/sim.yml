@@ -1,0 +1,63 @@
+name: Icarus Multi-Testbench CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      testbenches: ${{ steps.find.outputs.list }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: find
+        run: |
+          echo "Szukam testbenchów..."
+          TB_LIST=$(find . -name "*_tb*.sv" | jq -R -s -c 'split("\n")[:-1]')
+          echo "Znalezione TB: $TB_LIST"
+          echo "list=$TB_LIST" >> $GITHUB_OUTPUT
+
+  simulate:
+    needs: discover
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        tb: ${{ fromJson(needs.discover.outputs.testbenches) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Icarus Verilog
+        run: sudo apt-get update && sudo apt-get install -y iverilog
+
+      - name: Build simulation
+        run: |
+          echo "Testbench: ${{ matrix.tb }}"
+          DIR=$(dirname "${{ matrix.tb }}")
+          TB=$(basename "${{ matrix.tb }}")
+
+          # znajdź wszystkie pliki .sv w tym folderze
+          SV_FILES=$(ls "$DIR"/*.sv)
+
+          echo "Buduję: $SV_FILES"
+          iverilog -g2012 -o sim.out $SV_FILES
+
+      - name: Run simulation
+        run: |
+          vvp sim.out || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sim-${{ matrix.tb }}
+          path: |
+            sim.out
+            **/*.vcd
+          if-no-files-found: ignore
+
