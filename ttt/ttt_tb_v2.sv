@@ -40,8 +40,11 @@ module tb_top;
         @(negedge clk);
         data_in_x = 0;
         data_in_y = 1;
-        assert (dut.game_state[0][1] == 3) 
-        else  $error("Test failed: expected game_state[0][1] to be updated, but got %d", dut.game_state[0][1]);
+        assert (dut.game_state[0][1] == 3)
+            $info("game_state[0][1] is still empty as expected");
+        else
+            $error("Test failed: expected game_state[0][1] to be updated, but got %0d",
+                dut.game_state[0][1]);
         @(negedge clk);
         data_in_x = 0;
         data_in_y = 1;
