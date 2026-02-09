@@ -1,2 +1,30 @@
+# Verilator generated files
+obj_dir/
+obj-*/
+V*.mk
+V*.cpp
+V*.h
+verilated*.cpp
+verilated*.h
+verilated*.o
 *.vcd
+*.fst
+*.lxt
+*.vpd
+
+# Temporary / build files
 *.out
+sim-*.out
+*.log
+*.jou
+*.rpt
+
+# Editor / IDE files
+.vscode/
+.idea/
+*.swp
+*~
+
+# Inne często spotykane
+.DS_Store
+Thumbs.db

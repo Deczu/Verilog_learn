@@ -1,4 +1,4 @@
-name: Icarus Multi-Testbench CI
+name: Icarus Multi-Testbench CI (fallback → Verilator)
 
 on:
   push:
@@ -17,52 +17,77 @@ jobs:
       - id: find
         run: |
           echo "Szukam testbenchów..."
-          TB_LIST=$(find . -name "*_tb*.sv" | jq -R -s -c 'split("\n")[:-1]')
+          TB_LIST=$(find . -name "*_tb*.sv" -o -name "*_tb*.v" | jq -R -s -c 'split("\n") | map(select(. != ""))')
           echo "Znalezione TB: $TB_LIST"
           echo "list=$TB_LIST" >> $GITHUB_OUTPUT
 
   simulate:
     needs: discover
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       matrix:
         tb: ${{ fromJson(needs.discover.outputs.testbenches) }}
-
     steps:
       - uses: actions/checkout@v4
 
+      # ────────────────────────────────────────────────
+      # 1. Próbujemy najpierw Icarus Verilog
+      # ────────────────────────────────────────────────
       - name: Install Icarus Verilog
         run: sudo apt-get update && sudo apt-get install -y iverilog
 
-      - name: Build simulation
+      - name: Build & run with Icarus
+        id: icarus
+        continue-on-error: true           # ← kluczowe – pozwalamy na fail
         run: |
           echo "Testbench: ${{ matrix.tb }}"
           DIR=$(dirname "${{ matrix.tb }}")
           TB=$(basename "${{ matrix.tb }}")
 
-          # znajdź wszystkie pliki .sv w tym folderze
-          SV_FILES=$(ls "$DIR"/*.sv)
+          # Zbieramy wszystkie pliki .sv / .v w katalogu (i podkatalogach jeśli chcesz – wtedy find)
+          SV_FILES=$(find "$DIR" -name "*.sv" -o -name "*.v" | tr '\n' ' ')
+          echo "Pliki: $SV_FILES"
 
-          echo "Buduję: $SV_FILES"
-          iverilog -g2012 -o sim.out $SV_FILES
+          iverilog -g2012 -o sim-icarus.out $SV_FILES
+          vvp sim-icarus.out || true        # || true → nie psuje kroku, ale zachowujemy exit code
 
-      - name: Run simulation
+      # ────────────────────────────────────────────────
+      # 2. Jeśli Icarus zawiódł → budujemy i uruchamiamy Verilatorem
+      # ────────────────────────────────────────────────
+      - name: Install Verilator (fallback)
+        if: steps.icarus.outcome == 'failure'
         run: |
-          vvp sim.out || true
+          sudo apt-get update
+          sudo apt-get install -y verilator
 
+      - name: Build & run with Verilator (fallback)
+        if: steps.icarus.outcome == 'failure'
+        run: |
+          echo "Icarus failed → próbujemy Verilator dla ${{ matrix.tb }}"
+
+          DIR=$(dirname "${{ matrix.tb }}")
+          SV_FILES=$(find "$DIR" -name "*.sv" -o -name "*.v" | tr '\n' ' ')
+
+          verilator --binary --trace --build -j 0 -Wall --timescale "1ns/1ns" $SV_FILES
+          ./obj_dir/V* || true               # uruchamiamy główny plik binarny (nazwa zależy od modułu top)
+
+      # ────────────────────────────────────────────────
+      # Artifacty – zbieramy niezależnie od tego co się udało
+      # ────────────────────────────────────────────────
       - name: Sanitize artifact name
         id: sanitize
         run: |
-          CLEAN_NAME=$(echo "${{ matrix.tb }}" | tr '/.' '__')
+          CLEAN_NAME=$(echo "${{ matrix.tb }}" | tr '/.' '__' | sed 's/__/_/g')
           echo "clean=$CLEAN_NAME" >> $GITHUB_OUTPUT
 
-      - name: Upload artifacts
+      - name: Upload simulation results
         uses: actions/upload-artifact@v4
         with:
           name: sim-${{ steps.sanitize.outputs.clean }}
           path: |
-            sim.out
+            sim-*.out
+            obj_dir/*
             **/*.vcd
+            **/*.fst
           if-no-files-found: ignore

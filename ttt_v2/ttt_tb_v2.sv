@@ -2,8 +2,8 @@ module tb_top;
     logic clk;
     logic reset;
     logic enable;
-    logic [2:0] data_in_x;
-    logic [2:0] data_in_y;
+    logic [1:0] data_in_x;
+    logic [1:0] data_in_y;
     logic winner;
     logic [1:0] player;
     logic stop_game;
@@ -30,6 +30,8 @@ module tb_top;
     // TEST SEQUENCE
     initial begin
         // INIT
+        $display("Starting test sequence...");
+        $display("// =========================\n// TEST SEQUENCE\n// =========================\n");
         reset     = 1;
         enable    = 0;
         player    = 0;
@@ -64,7 +66,7 @@ module tb_top;
     // =========================
     initial begin
         $dumpfile("wave.vcd");
-        $dumpvars(2, tb_top);
+        $dumpvars(0, tb_top);
     end
 
 
