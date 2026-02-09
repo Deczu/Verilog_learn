@@ -1,4 +1,4 @@
-name: Icarus Multi-Testbench CI (fallback → Verilator)
+name: Multi-Simulator CI (Icarus → Verilator fallback)
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
       - id: find
         run: |
           echo "Szukam testbenchów..."
-          TB_LIST=$(find . -name "*_tb*.sv" -o -name "*_tb*.v" | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          TB_LIST=$(find . -type f \( -name "*_tb*.sv" -o -name "*_tb*.v" \) | sort | jq -R -s -c 'split("\n") | map(select(. != ""))')
           echo "Znalezione TB: $TB_LIST"
           echo "list=$TB_LIST" >> $GITHUB_OUTPUT
 
@@ -32,53 +32,66 @@ jobs:
       - uses: actions/checkout@v4
 
       # ────────────────────────────────────────────────
-      # 1. Próbujemy najpierw Icarus Verilog
+      # 1. Najpierw Icarus Verilog
       # ────────────────────────────────────────────────
       - name: Install Icarus Verilog
         run: sudo apt-get update && sudo apt-get install -y iverilog
 
       - name: Build & run with Icarus
         id: icarus
-        continue-on-error: true           # ← kluczowe – pozwalamy na fail
+        continue-on-error: true
         run: |
           echo "Testbench: ${{ matrix.tb }}"
           DIR=$(dirname "${{ matrix.tb }}")
-          TB=$(basename "${{ matrix.tb }}")
-
-          # Zbieramy wszystkie pliki .sv / .v w katalogu (i podkatalogach jeśli chcesz – wtedy find)
-          SV_FILES=$(find "$DIR" -name "*.sv" -o -name "*.v" | tr '\n' ' ')
+          SV_FILES=$(find "$DIR" -type f \( -name "*.sv" -o -name "*.v" \) | sort | tr '\n' ' ')
           echo "Pliki: $SV_FILES"
-
+          
           iverilog -g2012 -o sim-icarus.out $SV_FILES
-          vvp sim-icarus.out || true        # || true → nie psuje kroku, ale zachowujemy exit code
+          vvp sim-icarus.out || true
 
       # ────────────────────────────────────────────────
-      # 2. Jeśli Icarus zawiódł → budujemy i uruchamiamy Verilatorem
+      # 2. Fallback: Verilator – tylko gdy Icarus zawiódł
       # ────────────────────────────────────────────────
       - name: Install Verilator (fallback)
         if: steps.icarus.outcome == 'failure'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y verilator
+        run: sudo apt-get update && sudo apt-get install -y verilator
 
       - name: Build & run with Verilator (fallback)
         if: steps.icarus.outcome == 'failure'
         run: |
-          echo "Icarus failed → próbujemy Verilator dla ${{ matrix.tb }}"
-
+          echo "Icarus failed → fallback na Verilator dla ${{ matrix.tb }}"
+          
           DIR=$(dirname "${{ matrix.tb }}")
-          SV_FILES=$(find "$DIR" -name "*.sv" -o -name "*.v" | tr '\n' ' ')
-
-          verilator --binary --trace --build -j 0 -Wall --timescale "1ns/1ns" $SV_FILES
-          ./obj_dir/V* || true               # uruchamiamy główny plik binarny (nazwa zależy od modułu top)
+          SV_FILES=$(find "$DIR" -type f \( -name "*.sv" -o -name "*.v" \) | sort | tr '\n' ' ')
+          
+          # Czyszczenie starego katalogu (unikanie cache/clock skew)
+          rm -rf obj_dir
+          
+          verilator \
+            --prefix Vsim \
+            --binary \
+            --trace-fst \
+            --build \
+            -j 0 \
+            -Wall \
+            -Wno-fatal \
+            -Wno-EOFNEWLINE \
+            -Wno-DECLFILENAME \
+            -Wno-VARHIDDEN \
+            -Wno-UNUSEDSIGNAL \
+            -Wno-BLKSEQ \
+            --timescale "1ns/1ns" \
+            $SV_FILES
+          
+          ./obj_dir/Vsim || true
 
       # ────────────────────────────────────────────────
-      # Artifacty – zbieramy niezależnie od tego co się udało
+      # Artifacty – zbieramy niezależnie od wyniku
       # ────────────────────────────────────────────────
       - name: Sanitize artifact name
         id: sanitize
         run: |
-          CLEAN_NAME=$(echo "${{ matrix.tb }}" | tr '/.' '__' | sed 's/__/_/g')
+          CLEAN_NAME=$(echo "${{ matrix.tb }}" | sed 's|^\./||' | tr '/.' '_' | sed 's/__*/_/g' | sed 's/_$//')
           echo "clean=$CLEAN_NAME" >> $GITHUB_OUTPUT
 
       - name: Upload simulation results
@@ -90,4 +103,6 @@ jobs:
             obj_dir/*
             **/*.vcd
             **/*.fst
+            **/*.log
           if-no-files-found: ignore
+          retention-days: 7
