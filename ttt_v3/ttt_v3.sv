@@ -67,7 +67,7 @@ module tttv2 (
                     for (int x = 0; x < 3; x++) begin
                         if ((game_state_next[0][x] == game_state_next[1][x]) &&
                             (game_state_next[1][x] == game_state_next[2][x]) &&
-                            ~game_state_next[0][x][1]) begin
+                            game_state_next[0][x] != 3) begin
                             win_p = game_state_next[0][x];
                             win_f = 1;
                         end
@@ -84,7 +84,7 @@ module tttv2 (
                     // przekątna 2
                     if (game_state_next[0][2] == game_state_next[1][1] &&
                         game_state_next[1][1] == game_state_next[2][0] &&
-                        ~game_state_next[0][2][1]) begin
+                        game_state_next[0][2] inside {0,1}) begin
                         win_p = game_state_next[0][2];
                         win_f = 1;
                     end
