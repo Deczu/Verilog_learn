@@ -40,7 +40,7 @@ module tttv2 (
         full  = 1;
         // jeśli reset aktywny synchronicznie – obsłużymy w always_ff
         // tutaj tylko logika gry, gdy nie ma resetu
-        if (!reset && enable && !stop_game) begin
+        if (enable && !stop_game) begin
             // walidacja gracza
             if ((player == 0 || player == 1) && player != current_player) begin
                 // walidacja ruchu
@@ -90,7 +90,6 @@ module tttv2 (
                     end
 
                     // pełna plansza?
-                    full = 1;
                     for (int y = 0; y < 3; y++)
                         for (int x = 0; x < 3; x++)
                             if (game_state_next[y][x] == 3)
