@@ -23,6 +23,26 @@ module tttv2 (
     logic       win_f;
     logic       full;
 
+
+    function automatic logic [1:0] check_winner(logic [1:0] board[0:2][0:2]);
+        // wiersze
+        for (int i = 0; i < 3; i++)
+            if (board[i][0] != 3 && board[i][0] == board[i][1] && board[i][1] == board[i][2])
+                return board[i][0];
+
+        // kolumny
+        for (int i = 0; i < 3; i++)
+            if (board[0][i] != 3 && board[0][i] == board[1][i] && board[1][i] == board[2][i])
+                return board[0][i];
+
+        // przekątne
+        if (board[0][0] != 3 && board[0][0] == board[1][1] && board[1][1] == board[2][2])
+            return board[0][0];
+        if (board[0][2] != 3 && board[0][2] == board[1][1] && board[1][1] == board[2][0])
+            return board[0][2];
+
+        return 3; // nikt nie wygrał
+    endfunction
     // ------------------------------------------------------------
     // Kombinacyjna logika next_state
     // ------------------------------------------------------------
@@ -52,43 +72,8 @@ module tttv2 (
                     current_player_next = player;
 
                     // sprawdź wygraną na game_state_next
-
-                    // wiersze
-                    for (int y = 0; y < 3; y++) begin
-                        if (game_state_next[y][0] == game_state_next[y][1] &&
-                            game_state_next[y][1] == game_state_next[y][2] &&
-                            ~game_state_next[y][0][1]) begin
-                            win_p = game_state_next[y][0];
-                            win_f = 1;
-                        end
-                    end
-
-                    // kolumny
-                    for (int x = 0; x < 3; x++) begin
-                        if ((game_state_next[0][x] == game_state_next[1][x]) &&
-                            (game_state_next[1][x] == game_state_next[2][x]) &&
-                            game_state_next[0][x] != 3) begin
-                            win_p = game_state_next[0][x];
-                            win_f = 1;
-                        end
-                    end
-
-                    // przekątna 1
-                    if (game_state_next[0][0] == game_state_next[1][1] &&
-                        game_state_next[1][1] == game_state_next[2][2] &&
-                        ~game_state_next[0][0][1]) begin
-                        win_p = game_state_next[0][0];
-                        win_f = 1;
-                    end
-
-                    // przekątna 2
-                    if (game_state_next[0][2] == game_state_next[1][1] &&
-                        game_state_next[1][1] == game_state_next[2][0] &&
-                        game_state_next[0][2] inside {0,1}) begin
-                        win_p = game_state_next[0][2];
-                        win_f = 1;
-                    end
-
+                    win_p = check_winner(game_state_next);
+                    win_f = (~win_p[1]);
                     // pełna plansza?
                     for (int y = 0; y < 3; y++)
                         for (int x = 0; x < 3; x++)
